@@ -3,6 +3,7 @@ package company.vk.edu.distrib.compute;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import company.vk.edu.distrib.compute.b10nicle.B10nicleKVServiceFactory;
 import company.vk.edu.distrib.compute.nihuaway00.NihuawayKVServiceFactory;
 import company.vk.edu.distrib.compute.mandesero.KVServiceFactoryImpl;
 import org.jspecify.annotations.NonNull;
@@ -14,8 +15,9 @@ import org.junit.platform.commons.util.ReflectionUtils;
 
 public class KVServiceFactoryArgumentsProvider implements ArgumentsProvider {
     private final Set<Class<? extends KVServiceFactory>> factories = Set.of(
-            KVServiceFactoryImpl.class,
-            NihuawayKVServiceFactory.class
+        KVServiceFactoryImpl.class,
+        NihuawayKVServiceFactory.class,
+        B10nicleKVServiceFactory.class
     );
 
     @Override
