@@ -31,10 +31,9 @@ public class KVServiceFactoryArgumentsProvider implements ArgumentsProvider {
         Vitos23KVServiceFactory.class,
         NihuawayKVServiceFactory.class,
         B10nicleKVServiceFactory.class,
-        PopovIgorKVServiceFactoryImpl.class,
-        EdwinKVServiceFactory.class,
         VredakonKVServiceFactory.class,
-        PopovIgorKVServiceFactoryImpl.class
+        PopovIgorKVServiceFactoryImpl.class,
+        EdwinKVServiceFactory.class
     );
 
     @Override
