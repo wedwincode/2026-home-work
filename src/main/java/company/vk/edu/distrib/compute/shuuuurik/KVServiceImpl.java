@@ -4,7 +4,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import company.vk.edu.distrib.compute.Dao;
 import company.vk.edu.distrib.compute.KVService;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +18,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * KVService implementation using JDK HttpServer.
@@ -41,7 +41,7 @@ public class KVServiceImpl implements KVService {
 
     private final HttpServer server;
     private final InetSocketAddress listenAddress;
-    private boolean started;
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     public KVServiceImpl(int port, Dao<byte[]> dao) throws IOException {
         this.dao = validateDao(dao);
@@ -80,10 +80,6 @@ public class KVServiceImpl implements KVService {
         return dao;
     }
 
-    @SuppressFBWarnings(
-            value = "URLCONNECTION_SSRF_FD",
-            justification = "Local server bind only"
-    )
     private static InetSocketAddress createListenAddress(int port) {
         validatePort(port);
         return new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
@@ -97,7 +93,7 @@ public class KVServiceImpl implements KVService {
 
     @Override
     public void start() {
-        if (started) {
+        if (!started.compareAndSet(false, true)) {
             throw new IllegalStateException("Service already started");
         }
 
@@ -110,8 +106,8 @@ public class KVServiceImpl implements KVService {
             if (log.isDebugEnabled()) {
                 log.debug("HTTP server started on {}", server.getAddress());
             }
-            started = true;
         } catch (IOException e) {
+            started.set(false);
             log.error("Failed to start HTTP server on {}", listenAddress, e);
             throw new UncheckedIOException("Failed to start HTTP server", e);
         }
@@ -119,12 +115,11 @@ public class KVServiceImpl implements KVService {
 
     @Override
     public void stop() {
-        if (!started) {
+        if (!started.compareAndSet(true, false)) {
             throw new IllegalStateException("Service is not started");
         }
 
         server.stop(0);
-        started = false;
         if (log.isDebugEnabled()) {
             log.debug("HTTP server stopped");
         }
