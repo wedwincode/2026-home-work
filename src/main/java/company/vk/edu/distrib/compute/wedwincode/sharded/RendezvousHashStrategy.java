@@ -7,7 +7,7 @@ public class RendezvousHashStrategy implements HashStrategy {
 
     public RendezvousHashStrategy(List<String> endpoints) {
         if (endpoints == null || endpoints.isEmpty()) {
-            throw new RuntimeException("endpoints list is null or empty");
+            throw new IllegalStateException("endpoints list is null or empty");
         }
         this.endpoints = endpoints;
     }

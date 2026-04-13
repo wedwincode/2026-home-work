@@ -4,6 +4,8 @@ import company.vk.edu.distrib.compute.Dao;
 import company.vk.edu.distrib.compute.KVCluster;
 import company.vk.edu.distrib.compute.KVService;
 import company.vk.edu.distrib.compute.wedwincode.PersistentDao;
+import company.vk.edu.distrib.compute.wedwincode.exceptions.ServiceStartException;
+import company.vk.edu.distrib.compute.wedwincode.exceptions.ServiceStopException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,12 +38,12 @@ public class RendezvousKVClusterImpl implements KVCluster {
     @Override
     public void start(String endpoint) {
         if (endpointToService.containsKey(endpoint)) {
-            throw new RuntimeException("service is already running on endpoint " + endpoint);
+            throw new ServiceStartException("service is already running on endpoint " + endpoint);
         }
 
         try {
             if (!endpointToPort.containsKey(endpoint)) {
-                throw new RuntimeException("endpoint not exist: " + endpoint);
+                throw new ServiceStartException("endpoint not exist: " + endpoint);
             }
             int port = endpointToPort.get(endpoint);
             KVService service = new ShardedKVServiceImpl(
@@ -52,7 +54,7 @@ public class RendezvousKVClusterImpl implements KVCluster {
             service.start();
             endpointToService.put(endpoint, service);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ServiceStartException("failed to start endpoint: " + endpoint);
         }
     }
 
@@ -68,7 +70,7 @@ public class RendezvousKVClusterImpl implements KVCluster {
     @Override
     public void stop(String endpoint) {
         if (!endpointToService.containsKey(endpoint)) {
-            throw new RuntimeException("no services running on endpoint " + endpoint);
+            throw new ServiceStopException("no services running on endpoint " + endpoint);
         }
 
         endpointToService.get(endpoint).stop();

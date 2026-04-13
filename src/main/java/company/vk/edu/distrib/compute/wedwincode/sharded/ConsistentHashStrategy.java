@@ -9,7 +9,7 @@ public class ConsistentHashStrategy implements HashStrategy {
 
     public ConsistentHashStrategy(List<String> endpoints) {
         if (endpoints == null || endpoints.isEmpty()) {
-            throw new RuntimeException("endpoints list is null or empty");
+            throw new IllegalStateException("endpoints list is null or empty");
         }
         endpoints.forEach((endpoint) -> ring.put(hash(endpoint), endpoint));
     }

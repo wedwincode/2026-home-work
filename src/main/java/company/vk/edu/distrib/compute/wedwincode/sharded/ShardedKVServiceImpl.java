@@ -3,6 +3,7 @@ package company.vk.edu.distrib.compute.wedwincode.sharded;
 import com.sun.net.httpserver.HttpExchange;
 import company.vk.edu.distrib.compute.Dao;
 import company.vk.edu.distrib.compute.wedwincode.KVServiceImpl;
+import company.vk.edu.distrib.compute.wedwincode.exceptions.EntityException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +85,7 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
         try {
             return new URI(endpoint + "/v0/entity?id=" + id);
         } catch (URISyntaxException e) {
-            throw new RuntimeException("entity URI is invalid", e);
+            throw new EntityException("entity URI is invalid");
         }
     }
 }
