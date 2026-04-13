@@ -85,7 +85,7 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
         try {
             return new URI(endpoint + "/v0/entity?id=" + id);
         } catch (URISyntaxException e) {
-            throw new EntityException("entity URI is invalid");
+            throw new EntityException("entity URI is invalid", e);
         }
     }
 }

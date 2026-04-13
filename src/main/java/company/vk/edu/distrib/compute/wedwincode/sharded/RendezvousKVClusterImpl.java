@@ -54,7 +54,7 @@ public class RendezvousKVClusterImpl implements KVCluster {
             service.start();
             endpointToService.put(endpoint, service);
         } catch (IOException e) {
-            throw new ServiceStartException("failed to start endpoint: " + endpoint);
+            throw new ServiceStartException("failed to start endpoint: " + endpoint, e);
         }
     }
 

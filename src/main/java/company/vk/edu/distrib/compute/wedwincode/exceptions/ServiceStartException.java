@@ -6,6 +6,10 @@ public class ServiceStartException extends RuntimeException {
     @Serial
     private static final long serialVersionUID = -7810503583243373994L;
 
+    public ServiceStartException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
     public ServiceStartException(String message) {
         super(message);
     }
