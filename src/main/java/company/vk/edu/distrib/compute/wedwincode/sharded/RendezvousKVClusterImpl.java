@@ -3,6 +3,7 @@ package company.vk.edu.distrib.compute.wedwincode.sharded;
 import company.vk.edu.distrib.compute.Dao;
 import company.vk.edu.distrib.compute.KVCluster;
 import company.vk.edu.distrib.compute.KVService;
+import company.vk.edu.distrib.compute.wedwincode.DaoRecord;
 import company.vk.edu.distrib.compute.wedwincode.PersistentDao;
 import company.vk.edu.distrib.compute.wedwincode.exceptions.ServiceStartException;
 import company.vk.edu.distrib.compute.wedwincode.exceptions.ServiceStopException;
@@ -88,7 +89,7 @@ public class RendezvousKVClusterImpl implements KVCluster {
         return endpointToPort;
     }
 
-    private Dao<byte[]> buildPersistentDao(int port) throws IOException {
+    private Dao<DaoRecord> buildPersistentDao(int port) throws IOException {
         Path nodePath = STORAGE_PATH.resolve("node" + port);
         return new PersistentDao(nodePath);
     }

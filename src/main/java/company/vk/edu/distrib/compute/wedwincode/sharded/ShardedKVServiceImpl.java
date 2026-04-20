@@ -2,6 +2,7 @@ package company.vk.edu.distrib.compute.wedwincode.sharded;
 
 import com.sun.net.httpserver.HttpExchange;
 import company.vk.edu.distrib.compute.Dao;
+import company.vk.edu.distrib.compute.wedwincode.DaoRecord;
 import company.vk.edu.distrib.compute.wedwincode.KVServiceImpl;
 import company.vk.edu.distrib.compute.wedwincode.exceptions.EntityException;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 public class ShardedKVServiceImpl extends KVServiceImpl {
     private static final Duration PROXY_TIMEOUT = Duration.ofSeconds(5);
@@ -24,7 +26,7 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
     private final HashStrategy strategy;
     private final String selfEndpoint;
 
-    public ShardedKVServiceImpl(int port, Dao<byte[]> dao, HashStrategy strategy) throws IOException {
+    public ShardedKVServiceImpl(int port, Dao<DaoRecord> dao, HashStrategy strategy) throws IOException {
         super(port, dao);
         this.server.removeContext("/v0/entity");
         this.server.createContext("/v0/entity", this::handleEntity);
@@ -33,14 +35,15 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
     }
 
     private void handleEntity(HttpExchange exchange) throws IOException {
-        String id;
+        Map<String, String> params;
         try {
-            id = parseQuery(exchange.getRequestURI().getRawQuery());
+            params = parseQuery(exchange.getRequestURI().getRawQuery());
         } catch (IllegalArgumentException e) {
             sendEmptyResponse(HttpURLConnection.HTTP_BAD_REQUEST, exchange);
             return;
         }
 
+        String id = getValueFromParams("id", params);
         String targetEndpoint = strategy.getEndpoint(id);
         if (!selfEndpoint.equals(targetEndpoint)) {
             URI targetUri = buildEntityUri(targetEndpoint, id);
@@ -48,7 +51,7 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
             return;
         }
 
-        handleEntityMethod(exchange, id);
+        handleEntityMethod(params, exchange);
     }
 
     private void proxyRequest(HttpExchange exchange, URI uri) {

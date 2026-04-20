@@ -3,6 +3,7 @@ package company.vk.edu.distrib.compute.wedwincode;
 import company.vk.edu.distrib.compute.Dao;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -14,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class PersistentDao implements Dao<byte[]> {
+public class PersistentDao implements Dao<DaoRecord> {
     private final Path storageDir;
     private final ConcurrentMap<String, ReentrantLock> keyLocks;
 
@@ -25,26 +26,25 @@ public class PersistentDao implements Dao<byte[]> {
     }
 
     @Override
-    public byte[] get(String key) throws NoSuchElementException, IllegalArgumentException, IOException {
+    public DaoRecord get(String key) throws NoSuchElementException, IllegalArgumentException, IOException {
         checkKey(key);
         ReentrantLock lock = keyLocks.computeIfAbsent(key, k -> new ReentrantLock());
         lock.lock();
         try {
             Path file = resolvePath(key);
             if (!Files.exists(file)) {
-                throw new NoSuchElementException("key not found: " + key);
+                throw new NoSuchElementException("file not found: " + key);
             }
-
-            return Files.readAllBytes(file);
+            return deserialize(Files.readAllBytes(file));
         } finally {
             lock.unlock();
         }
     }
 
     @Override
-    public void upsert(String key, byte[] value) throws IllegalArgumentException, IOException {
+    public void upsert(String key, DaoRecord daoRecord) throws IllegalArgumentException, IOException {
         checkKey(key);
-        if (value == null) {
+        if (daoRecord == null) {
             throw new IllegalArgumentException("value must not be null");
         }
 
@@ -55,7 +55,7 @@ public class PersistentDao implements Dao<byte[]> {
             Path tempFile = Files.createTempFile(storageDir, "tmp-", ".bin");
 
             try {
-                Files.write(tempFile, value);
+                Files.write(tempFile, serialize(daoRecord));
 
                 try {
                     Files.move(tempFile, file,
@@ -80,7 +80,7 @@ public class PersistentDao implements Dao<byte[]> {
         lock.lock();
         try {
             Path file = resolvePath(key);
-            Files.deleteIfExists(file);
+            Files.write(file, serialize(DaoRecord.buildDeleted()));
         } finally {
             lock.unlock();
         }
@@ -102,5 +102,35 @@ public class PersistentDao implements Dao<byte[]> {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException("key must not be null or empty");
         }
+    }
+
+    private byte[] serialize(DaoRecord daoRecord) {
+        byte[] data = daoRecord.data() == null ? new byte[0] : daoRecord.data();
+
+        int size = Long.BYTES
+                + 1
+                + Integer.BYTES
+                + data.length;
+
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        buffer.putLong(daoRecord.timestamp());
+        buffer.put((byte) (daoRecord.deleted() ? 1 : 0));
+        buffer.putInt(data.length);
+        buffer.put(data);
+
+        return buffer.array();
+    }
+
+    private DaoRecord deserialize(byte[] bytes) {
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+
+        long timestamp = buffer.getLong();
+        boolean deleted = buffer.get() == 1;
+        int length = buffer.getInt();
+
+        byte[] data = new byte[length];
+        buffer.get(data);
+
+        return new DaoRecord(data, timestamp, deleted);
     }
 }
