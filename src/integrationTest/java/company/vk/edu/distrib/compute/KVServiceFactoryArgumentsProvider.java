@@ -46,15 +46,12 @@ public class KVServiceFactoryArgumentsProvider implements ArgumentsProvider {
         PopovIgorKVServiceFactoryImpl.class,
         NesterukiaInMemoryKVServiceFactory.class,
         NesterukiaFileSystemKVServiceFactory.class,
-<<<<<<< master
-        EdwinKVServiceFactory.class
-=======
         KirillmedvedevKVServiceFactory.class,
         KirillmedvedevFileSystemKVServiceFactory.class,
         LuckySlon2003KVServiceFactory.class,
         Wolfram158KVServiceFactoryFileWithCacheImpl.class,
-        CakeKVServiceFactory.class
->>>>>>> master
+        CakeKVServiceFactory.class,
+        EdwinKVServiceFactory.class
     );
 
     @Override
