@@ -7,8 +7,6 @@ import company.vk.edu.distrib.compute.wedwincode.DaoRecord;
 import company.vk.edu.distrib.compute.wedwincode.KVServiceImpl;
 import company.vk.edu.distrib.compute.wedwincode.exceptions.QuorumException;
 import company.vk.edu.distrib.compute.wedwincode.exceptions.ServiceStopException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -16,14 +14,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
 
 public class ReplicatedKVServiceImpl extends KVServiceImpl implements ReplicatedService {
-    private static final Logger log = LoggerFactory.getLogger(ReplicatedKVServiceImpl.class);
     private static final int DEFAULT_ACK = 1;
 
     private final int port;
     private final List<Dao<DaoRecord>> replicas;
     private final boolean[] enabled;
+
+    private final ParallelReplicationService parallelReplicationService;
+
+    private record ReadResult(boolean responded, DaoRecord record) {}
 
     public ReplicatedKVServiceImpl(int port, List<Dao<DaoRecord>> replicas) throws IOException {
         super(port, null);
@@ -31,6 +33,7 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
         this.replicas = replicas;
         enabled = new boolean[replicas.size()];
         Arrays.fill(enabled, true);
+        parallelReplicationService = new ParallelReplicationService(replicas, i -> enabled[i]);
     }
 
     @Override
@@ -89,25 +92,26 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
         String id = getValueFromParams("id", params);
         int ack = getAck(params);
 
+        Function<Dao<DaoRecord>, ReadResult> taskGet = (replica) -> {
+            try {
+                return new ReadResult(true, replica.get(id));
+            } catch (NoSuchElementException e) {
+                return new ReadResult(true, null);
+            } catch (IOException e) {
+                return new ReadResult(false, null);
+            }
+        };
+
+        List<ReadResult> results = parallelReplicationService.performTaskWithResult(taskGet);
+
         int confirmed = 0;
         DaoRecord best = null;
-
-        for (int i = 0; i < replicas.size(); i++) {
-            if (!enabled[i]) {
-                continue;
+        for (var result: results) {
+            if (result.responded) {
+                confirmed++;
             }
-            try {
-                DaoRecord current = replicas.get(i).get(id);
-                if (best == null || current.timestamp() > best.timestamp()) {
-                    best = current;
-                }
-                confirmed++;
-                log.debug("got from replicaId={}", i);
-            } catch (NoSuchElementException e) {
-                confirmed++;
-                log.debug("replicaId={} has no value", i);
-            } catch (IOException e) {
-                log.debug("replicaId={} unavailable", i, e);
+            if (best == null || result.record().timestamp() > best.timestamp()) {
+                best = result.record();
             }
         }
         if (confirmed < ack) {
@@ -125,21 +129,17 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
         String id = getValueFromParams("id", params);
         int ack = getAck(params);
 
-        int confirmed = 0;
-
-        for (int i = 0; i < replicas.size(); i++) {
-            if (!enabled[i]) {
-                continue;
-            }
+        Function<Dao<DaoRecord>, Boolean> upsertion = (replica) -> {
             try {
-                replicas.get(i).upsert(id, DaoRecord.buildCreated(data));
-                confirmed++;
-                log.debug("put to replicaId={}", i);
+                replica.upsert(id, DaoRecord.buildCreated(data));
+                return true;
             } catch (Exception e) {
-                // pass
+                return false;
             }
-        }
+        };
 
+        List<Boolean> results = parallelReplicationService.performTaskWithResult(upsertion);
+        int confirmed = (int) results.stream().filter(Boolean.TRUE::equals).count();
         if (confirmed < ack) {
             throw new QuorumException("error upserting data");
         }
@@ -150,21 +150,17 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
         String id = getValueFromParams("id", params);
         int ack = getAck(params);
 
-        int confirmed = 0;
-
-        for (int i = 0; i < replicas.size(); i++) {
-            if (!enabled[i]) {
-                continue;
-            }
+        Function<Dao<DaoRecord>, Boolean> deletion = (replica) -> {
             try {
-                replicas.get(i).delete(id);
-                confirmed++;
-                log.debug("deleted from replicaId={}", i);
+                replica.delete(id);
+                return true;
             } catch (Exception e) {
-                // pass
+                return false;
             }
-        }
+        };
 
+        List<Boolean> results = parallelReplicationService.performTaskWithResult(deletion);
+        int confirmed = (int) results.stream().filter(Boolean.TRUE::equals).count();
         if (confirmed < ack) {
             throw new QuorumException("error deleting data");
         }
