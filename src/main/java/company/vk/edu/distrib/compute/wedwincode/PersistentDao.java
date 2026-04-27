@@ -11,24 +11,26 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Base64;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class PersistentDao implements Dao<DaoRecord> {
+    private static final int LOCK_STRIPES = 1024;
     private final Path storageDir;
-    private final ConcurrentMap<String, ReentrantLock> keyLocks;
+    private final ReentrantLock[] locks;
 
     public PersistentDao(Path storageDir) throws IOException {
         this.storageDir = storageDir;
-        this.keyLocks = new ConcurrentHashMap<>();
+        this.locks = new ReentrantLock[LOCK_STRIPES];
+        for (int i = 0; i < LOCK_STRIPES; i++) {
+            locks[i] = new ReentrantLock();
+        }
         Files.createDirectories(storageDir);
     }
 
     @Override
     public DaoRecord get(String key) throws NoSuchElementException, IllegalArgumentException, IOException {
         checkKey(key);
-        ReentrantLock lock = keyLocks.computeIfAbsent(key, k -> new ReentrantLock());
+        ReentrantLock lock = lockFor(key);
         lock.lock();
         try {
             Path file = resolvePath(key);
@@ -48,7 +50,7 @@ public class PersistentDao implements Dao<DaoRecord> {
             throw new IllegalArgumentException("value must not be null");
         }
 
-        ReentrantLock lock = keyLocks.computeIfAbsent(key, k -> new ReentrantLock());
+        ReentrantLock lock = lockFor(key);
         lock.lock();
         try {
             Path file = resolvePath(key);
@@ -76,7 +78,7 @@ public class PersistentDao implements Dao<DaoRecord> {
     @Override
     public void delete(String key) throws IllegalArgumentException, IOException {
         checkKey(key);
-        ReentrantLock lock = keyLocks.computeIfAbsent(key, k -> new ReentrantLock());
+        ReentrantLock lock = lockFor(key);
         lock.lock();
         try {
             Path file = resolvePath(key);
@@ -132,5 +134,9 @@ public class PersistentDao implements Dao<DaoRecord> {
         buffer.get(data);
 
         return new DaoRecord(data, timestamp, deleted);
+    }
+
+    private ReentrantLock lockFor(String key) {
+        return locks[Math.floorMod(key.hashCode(), LOCK_STRIPES)];
     }
 }

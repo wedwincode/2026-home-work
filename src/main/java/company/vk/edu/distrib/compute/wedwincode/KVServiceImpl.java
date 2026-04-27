@@ -113,6 +113,8 @@ public class KVServiceImpl implements KVService {
                 case DELETE_METHOD -> handleDeleteEntity(params, exchange);
                 default -> handleUnsupportedMethod(exchange);
             }
+        } catch (IllegalArgumentException e) {
+            sendEmptyResponse(HttpURLConnection.HTTP_BAD_REQUEST, exchange);
         } catch (IOException | RuntimeException e) {
             sendEmptyResponse(HttpURLConnection.HTTP_INTERNAL_ERROR, exchange);
         }

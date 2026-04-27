@@ -101,4 +101,8 @@ public class ReplicationService {
         }
         return count;
     }
+
+    public void shutdown() {
+        replicaExecutor.shutdown();
+    }
 }

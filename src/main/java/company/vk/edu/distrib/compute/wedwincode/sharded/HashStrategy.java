@@ -1,5 +1,6 @@
 package company.vk.edu.distrib.compute.wedwincode.sharded;
 
+import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
 
 /**
@@ -11,7 +12,7 @@ public interface HashStrategy {
 
     default long hash(String input) {
         CRC32 crc = new CRC32();
-        crc.update(input.getBytes());
+        crc.update(input.getBytes(StandardCharsets.UTF_8));
         return crc.getValue();
     }
 }

@@ -27,11 +27,15 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class GrpcShardedKVServiceImpl extends ShardedKVServiceImpl {
 
     private final Logger log = LoggerFactory.getLogger(GrpcShardedKVServiceImpl.class);
     private final Server grpcServer;
+    private final Map<Integer, ManagedChannel> channels = new ConcurrentHashMap<>();
+    private final Map<Integer, ReactorKVServiceGrpc.ReactorKVServiceStub> stubs = new ConcurrentHashMap<>();
 
     private record GrpcData(
             String key,
@@ -60,27 +64,46 @@ public class GrpcShardedKVServiceImpl extends ShardedKVServiceImpl {
                 log.info("gRPC server started on port {}", grpcServer.getPort());
             }
         } catch (IOException e) {
-            log.error("couldn't start gRPC server");
+            log.error("couldn't start gRPC server", e);
+            throw new IllegalStateException("Failed to start gRPC server", e);
+        }
+        try {
+            super.start();
+        } catch (RuntimeException e) {
+            grpcServer.shutdown();
+            throw e;
+        }
+    }
+
+    @Override
+    public void stop() {
+        if (grpcServer != null) {
+            grpcServer.shutdown();
         }
 
-        super.start();
+        channels.values().forEach(channel -> {
+            channel.shutdown();
+            try {
+                if (!channel.awaitTermination(3, TimeUnit.SECONDS)) {
+                    channel.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                channel.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        super.stop();
     }
 
     @Override
     protected void proxyRequest(HttpExchange exchange, URI uri) throws IOException {
-        ManagedChannel channel = null;
-
         try {
             Map<String, String> params = parseQuery(uri.getRawQuery());
             String key = getValueFromParams("id", params);
             int grpcPort = Integer.parseInt(getValueFromParams("grpcPort", params));
 
-            channel = ManagedChannelBuilder
-                    .forAddress("localhost", grpcPort)
-                    .usePlaintext()
-                    .build();
-
-            ReactorKVServiceGrpc.ReactorKVServiceStub stub = ReactorKVServiceGrpc.newReactorStub(channel);
+            ReactorKVServiceGrpc.ReactorKVServiceStub stub = getStub(grpcPort);
 
             GrpcData data = new GrpcData(key, stub, exchange);
             switch (exchange.getRequestMethod()) {
@@ -98,10 +121,6 @@ public class GrpcShardedKVServiceImpl extends ShardedKVServiceImpl {
         } catch (Exception e) {
             log.error("error while proxying using gRPC", e);
             sendEmptyResponse(HttpURLConnection.HTTP_INTERNAL_ERROR, exchange);
-        } finally {
-            if (channel != null) {
-                channel.shutdown();
-            }
         }
     }
 
@@ -112,27 +131,43 @@ public class GrpcShardedKVServiceImpl extends ShardedKVServiceImpl {
                         .build()
         ).block();
         log.info("got response for GET via gRPC");
-        assert response != null;
+
+        if (response == null) {
+            log.error("GET via gRPC returned null response");
+            sendEmptyResponse(HttpURLConnection.HTTP_INTERNAL_ERROR, data.exchange);
+            return;
+        }
+
+        if (!response.hasValue()) {
+            log.info("GET via gRPC returned no value for key {}", data.key);
+            sendEmptyResponse(HttpURLConnection.HTTP_NOT_FOUND, data.exchange);
+            return;
+        }
+
         byte[] body = response.getValue().getValue().toByteArray();
 
-        data.exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
-        try (OutputStream os = data.exchange.getResponseBody()) {
-            os.write(body);
+        try (HttpExchange exchange = data.exchange) {
+            exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, body.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(body);
+            }
         }
     }
 
     private void handlePutEntityGrpc(GrpcData data) throws IOException {
-        byte[] body = data.exchange.getRequestBody().readAllBytes();
+        try (HttpExchange exchange = data.exchange) {
+            byte[] body = exchange.getRequestBody().readAllBytes();
 
-        data.stub.upsert(
-                UpsertRequest.newBuilder()
-                        .setKey(data.key)
-                        .setValue(ByteString.copyFrom(body))
-                        .build()
-        ).block();
+            data.stub.upsert(
+                    UpsertRequest.newBuilder()
+                            .setKey(data.key)
+                            .setValue(ByteString.copyFrom(body))
+                            .build()
+            ).block();
 
-        log.info("PUT via gRPC");
-        sendEmptyResponse(HttpURLConnection.HTTP_CREATED, data.exchange);
+            log.info("PUT via gRPC");
+            sendEmptyResponse(HttpURLConnection.HTTP_CREATED, exchange);
+        }
     }
 
     private void handleDeleteEntityGrpc(GrpcData data) throws IOException {
@@ -145,11 +180,43 @@ public class GrpcShardedKVServiceImpl extends ShardedKVServiceImpl {
         sendEmptyResponse(HttpURLConnection.HTTP_ACCEPTED, data.exchange);
     }
 
+    private ReactorKVServiceGrpc.ReactorKVServiceStub getStub(int grpcPort) {
+        return stubs.computeIfAbsent(grpcPort, port -> {
+            ManagedChannel channel = ManagedChannelBuilder
+                    .forAddress("localhost", port)
+                    .usePlaintext()
+                    .build();
+
+            channels.put(port, channel);
+            return ReactorKVServiceGrpc.newReactorStub(channel);
+        });
+    }
+
     @Override
     protected URI buildEntityUri(String endpoint, String id) {
         try {
-            String[] parts = endpoint.split("\\?");
-            return new URI(parts[0] + "/v0/entity?id=" + id + "&" + parts[1]);
+            URI baseUri = new URI(endpoint);
+            String basePath = baseUri.getPath();
+            String entityPath = (basePath == null || basePath.isEmpty())
+                    ? "/v0/entity"
+                    : basePath + "/v0/entity";
+            String query = "id=" + java.net.URLEncoder.encode(
+                    id,
+                    java.nio.charset.StandardCharsets.UTF_8
+            );
+            String existingQuery = baseUri.getQuery();
+            if (existingQuery != null && !existingQuery.isEmpty()) {
+                query += "&" + existingQuery;
+            }
+            return new URI(
+                    baseUri.getScheme(),
+                    baseUri.getUserInfo(),
+                    baseUri.getHost(),
+                    baseUri.getPort(),
+                    entityPath,
+                    query,
+                    baseUri.getFragment()
+            );
         } catch (URISyntaxException e) {
             throw new EntityException("entity URI is invalid", e);
         }

@@ -51,7 +51,7 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
 
     @Override
     public void disableReplica(int nodeId) {
-        if (nodeId > replicas.size()) {
+        if (nodeId < 0 || nodeId >= replicas.size()) {
             throw new IllegalArgumentException("incorrect nodeId");
         }
         enabled[nodeId] = false;
@@ -59,7 +59,7 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
 
     @Override
     public void enableReplica(int nodeId) {
-        if (nodeId > replicas.size()) {
+        if (nodeId < 0 || nodeId >= replicas.size()) {
             throw new IllegalArgumentException("incorrect nodeId");
         }
         enabled[nodeId] = true;
@@ -67,6 +67,7 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
 
     @Override
     protected void closeDao() {
+        replicationService.shutdown();
         boolean success = true;
         for (Dao<DaoRecord> replica: replicas) {
             try {
@@ -83,7 +84,7 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
     @Override
     protected void handleEntityMethod(Map<String, String> params, HttpExchange exchange) throws IOException {
         int ack = getAck(params);
-        if (ack > replicas.size()) {
+        if (ack <= 0 || ack > replicas.size()) {
             sendEmptyResponse(HttpURLConnection.HTTP_BAD_REQUEST, exchange);
             return;
         }
@@ -176,10 +177,16 @@ public class ReplicatedKVServiceImpl extends KVServiceImpl implements Replicated
     }
 
     private static int getAck(Map<String, String> params) {
+        final String ackRaw;
         try {
-            String ackRaw = getValueFromParams("ack", params);
-            return Integer.parseInt(ackRaw);
+            ackRaw = getValueFromParams("ack", params);
         } catch (IllegalArgumentException e) {
+            return DEFAULT_ACK;
+        }
+
+        try {
+            return Integer.parseInt(ackRaw);
+        } catch (NumberFormatException e) {
             return DEFAULT_ACK;
         }
     }

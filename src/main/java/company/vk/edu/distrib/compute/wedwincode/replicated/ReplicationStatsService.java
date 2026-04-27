@@ -36,9 +36,25 @@ public class ReplicationStatsService {
         }
 
         String suffix = path.substring(statsPrefix.length());
+        if (suffix.isEmpty() || suffix.startsWith("/") || suffix.endsWith("/")) {
+            sendEmptyResponse(HttpURLConnection.HTTP_BAD_REQUEST, exchange);
+            return;
+        }
+
         String[] parts = suffix.split("/");
 
-        int id = Integer.parseInt(parts[0]);
+        int id;
+        try {
+            id = Integer.parseInt(parts[0]);
+        } catch (NumberFormatException e) {
+            sendEmptyResponse(HttpURLConnection.HTTP_BAD_REQUEST, exchange);
+            return;
+        }
+
+        if (id < 0) {
+            sendEmptyResponse(HttpURLConnection.HTTP_NOT_FOUND, exchange);
+            return;
+        }
 
         final int keyModePartLength = 1;
         final int accessPartLength = 2;
@@ -64,8 +80,12 @@ public class ReplicationStatsService {
     }
 
     private float getAccessRate(int replicaId) {
-        long timeDelta = (System.currentTimeMillis() - startTime) * 1000;
-        return (float) requestsByReplica.get(replicaId) / timeDelta;
+        long elapsedMillis = System.currentTimeMillis() - startTime;
+        if (elapsedMillis <= 0) {
+            return 0.0f;
+        }
+        double elapsedSeconds = elapsedMillis / 1000.0;
+        return (float) (requestsByReplica.get(replicaId) / elapsedSeconds);
     }
 
     private void handleKeyStats(int id, HttpExchange exchange) throws IOException {

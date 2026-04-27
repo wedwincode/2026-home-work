@@ -11,6 +11,10 @@ public class EdwinKVServiceFactory extends KVServiceFactory {
 
     @Override
     protected KVService doCreate(int port) throws IOException {
-        return new KVServiceImpl(port, new PersistentDao(DATA_DIR));
+        return new KVServiceImpl(port, new PersistentDao(dataDirForPort(port)));
+    }
+
+    private static Path dataDirForPort(int port) {
+        return DATA_DIR.resolve("node" + port);
     }
 }

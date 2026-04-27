@@ -55,7 +55,8 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
     }
 
     protected void proxyRequest(HttpExchange exchange, URI uri) throws IOException {
-        try (HttpClient client = HttpClient.newHttpClient()) {
+        try (exchange) {
+            HttpClient client = HttpClient.newHttpClient();
             HttpRequest.Builder builder = HttpRequest.newBuilder();
             switch (exchange.getRequestMethod()) {
                 case GET_METHOD -> builder = builder.GET();
@@ -63,7 +64,10 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
                         HttpRequest.BodyPublishers.ofInputStream(exchange::getRequestBody)
                 );
                 case DELETE_METHOD -> builder = builder.DELETE();
-                default -> handleUnsupportedMethod(exchange);
+                default -> {
+                    handleUnsupportedMethod(exchange);
+                    return;
+                }
             }
 
             HttpRequest request = builder
@@ -81,6 +85,8 @@ public class ShardedKVServiceImpl extends KVServiceImpl {
             if (log.isErrorEnabled()) {
                 log.error("error while proxying: {}", e.getMessage());
             }
+
+            sendEmptyResponse(HttpURLConnection.HTTP_INTERNAL_ERROR, exchange);
         }
     }
 
