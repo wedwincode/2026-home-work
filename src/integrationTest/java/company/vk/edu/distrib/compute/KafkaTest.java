@@ -30,8 +30,8 @@ public class KafkaTest extends TestBase {
     private static final String PUT = "PUT";
     private static final String GET = "GET";
     private static final String DELETE = "DELETE";
+    private static final String AUDIT_TOPIC_NAME = "audit";
 
-    static final String AUDIT_TOPIC_NAME = "audit";
     static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     @Parameter(0)
