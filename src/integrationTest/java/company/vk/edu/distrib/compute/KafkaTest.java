@@ -44,21 +44,21 @@ public class KafkaTest extends TestBase {
             DockerImageName.parse("confluentinc/cp-kafka:7.7.8")
     );
 
-    private static final String BOOTSTRAP_SERVERS = KAFKA.getBootstrapServers();
-    private static final AdminClient ADMIN_CLIENT = createAdminClient();
+    private String bootstrapServers;
+    private AdminClient adminClient;
 
     @Test
     void shouldAuditPutGetDelete() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
 
-            AuditService auditService = auditServiceFactory.create(BOOTSTRAP_SERVERS, "cg_t1_1");
+            AuditService auditService = auditServiceFactory.create(bootstrapServers, "cg_t1_1");
             auditService.start();
 
             int port = randomPort();
             String endpoint = endpoint(port);
             KVService storage = kvServiceFactory.create(port);
             if (storage instanceof AuditableKVService auditableStorage) {
-                auditableStorage.setBootstrapServers(BOOTSTRAP_SERVERS);
+                auditableStorage.setBootstrapServers(bootstrapServers);
             }
             storage.start();
 
@@ -95,14 +95,14 @@ public class KafkaTest extends TestBase {
     void shouldAuditNotFound() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
 
-            AuditService auditService = auditServiceFactory.create(BOOTSTRAP_SERVERS, "cg_t2_1");
+            AuditService auditService = auditServiceFactory.create(bootstrapServers, "cg_t2_1");
             auditService.start();
 
             int port = randomPort();
             String endpoint = endpoint(port);
             KVService storage = kvServiceFactory.create(port);
             if (storage instanceof AuditableKVService auditableStorage) {
-                auditableStorage.setBootstrapServers(BOOTSTRAP_SERVERS);
+                auditableStorage.setBootstrapServers(bootstrapServers);
             }
             storage.start();
 
@@ -134,16 +134,16 @@ public class KafkaTest extends TestBase {
     void shouldAuditSecondConsumerAddedInGroup() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             String consumerGroupId = "cg_t3_1";
-            AuditService auditService1 = auditServiceFactory.create(BOOTSTRAP_SERVERS, consumerGroupId);
+            AuditService auditService1 = auditServiceFactory.create(bootstrapServers, consumerGroupId);
             auditService1.start();
 
-            AuditService auditService2 = auditServiceFactory.create(BOOTSTRAP_SERVERS, consumerGroupId);
+            AuditService auditService2 = auditServiceFactory.create(bootstrapServers, consumerGroupId);
 
             int port = randomPort();
             String endpoint = endpoint(port);
             KVService storage = kvServiceFactory.create(port);
             if (storage instanceof AuditableKVService auditableStorage) {
-                auditableStorage.setBootstrapServers(BOOTSTRAP_SERVERS);
+                auditableStorage.setBootstrapServers(bootstrapServers);
             }
             storage.start();
 
@@ -191,16 +191,16 @@ public class KafkaTest extends TestBase {
     void shouldAuditTwoConsumerGroups() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
 
-            AuditService auditService1 = auditServiceFactory.create(BOOTSTRAP_SERVERS, "cg_t4_1");
+            AuditService auditService1 = auditServiceFactory.create(bootstrapServers, "cg_t4_1");
             auditService1.start();
 
-            AuditService auditService2 = auditServiceFactory.create(BOOTSTRAP_SERVERS, "cg_t4_2");
+            AuditService auditService2 = auditServiceFactory.create(bootstrapServers, "cg_t4_2");
 
             int port = randomPort();
             String endpoint = endpoint(port);
             KVService storage = kvServiceFactory.create(port);
             if (storage instanceof AuditableKVService auditableStorage) {
-                auditableStorage.setBootstrapServers(BOOTSTRAP_SERVERS);
+                auditableStorage.setBootstrapServers(bootstrapServers);
             }
             storage.start();
 
@@ -250,33 +250,36 @@ public class KafkaTest extends TestBase {
         });
     }
 
-    static AdminClient createAdminClient() {
-        Properties adminProps = new Properties();
-        adminProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS);
-        return AdminClient.create(adminProps);
+    static String getBootstrapServers() {
+        return KAFKA.getBootstrapServers();
     }
 
     @AfterAll
     static void afterAll() {
         HTTP_CLIENT.close();
-        ADMIN_CLIENT.close();
     }
 
     @BeforeEach
     void createTopic() throws ExecutionException, InterruptedException {
-        Set<String> topics = ADMIN_CLIENT.listTopics().names().get();
+        Set<String> topics = adminClient.listTopics().names().get();
         if (!topics.contains(AUDIT_TOPIC_NAME)) {
             NewTopic auditTopic = new NewTopic(AUDIT_TOPIC_NAME, 2, (short) 1);
-            ADMIN_CLIENT.createTopics(List.of(auditTopic));
+            adminClient.createTopics(List.of(auditTopic));
         }
+        bootstrapServers = KAFKA.getBootstrapServers();
+
+        Properties adminProps = new Properties();
+        adminProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        adminClient = AdminClient.create(adminProps);
     }
 
     @AfterEach
     void deleteTopic() throws ExecutionException, InterruptedException {
-        Set<String> topics = ADMIN_CLIENT.listTopics().names().get();
+        Set<String> topics = adminClient.listTopics().names().get();
         if (topics.contains(AUDIT_TOPIC_NAME)) {
-            ADMIN_CLIENT.deleteTopics(List.of(AUDIT_TOPIC_NAME));
+            adminClient.deleteTopics(List.of(AUDIT_TOPIC_NAME));
         }
+        adminClient.close();
     }
 
     @Override
