@@ -21,7 +21,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@Disabled // todo remove the line to enable tests
+// codacy-ignore-start: class is intentionally disabled for parameterized tests
+@Disabled
 @ParameterizedClass
 @ArgumentsSource(AuditServiceFactoryArgumentsProvider.class)
 @Testcontainers
