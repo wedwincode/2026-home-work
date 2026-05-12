@@ -26,6 +26,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @ArgumentsSource(AuditServiceFactoryArgumentsProvider.class)
 @Testcontainers
 public class KafkaTest extends TestBase {
+    private static final String PUT = "PUT";
+    private static final String GET = "GET";
+    private static final String DELETE = "DELETE";
+
     static final String AUDIT_TOPIC_NAME = "audit";
     static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     static String bootstrapServers;
@@ -76,7 +80,7 @@ public class KafkaTest extends TestBase {
                         .toList();
                 assertEquals(3, events.size());
                 assertArrayEquals(
-                        new String[] {"PUT", "GET", "DELETE"},
+                        new String[] {PUT, GET, DELETE},
                         events.stream().map(AuditEvent::method).toArray()
                 );
             } finally {
@@ -114,7 +118,7 @@ public class KafkaTest extends TestBase {
                         .toList();
                 assertEquals(1, events.size());
                 assertArrayEquals(
-                        new String[] {"GET"},
+                        new String[] {GET},
                         events.stream().map(AuditEvent::method).toArray()
                 );
 
@@ -155,7 +159,7 @@ public class KafkaTest extends TestBase {
 
                 assertEquals(1, events1.size());
                 assertArrayEquals(
-                        new String[] {"PUT"},
+                        new String[] {PUT},
                         events1.stream().map(AuditEvent::method).toArray()
                 );
 
@@ -213,7 +217,7 @@ public class KafkaTest extends TestBase {
                         .toList();
                 assertEquals(1, events1.size());
                 assertArrayEquals(
-                        new String[] {"PUT"},
+                        new String[] {PUT},
                         events1.stream().map(AuditEvent::method).toArray()
                 );
 
@@ -233,7 +237,7 @@ public class KafkaTest extends TestBase {
                         .toList();
                 assertEquals(1, events2.size());
                 assertArrayEquals(
-                        new String[] {"PUT"},
+                        new String[] {PUT},
                         events2.stream().map(AuditEvent::method).toArray()
                 );
 
