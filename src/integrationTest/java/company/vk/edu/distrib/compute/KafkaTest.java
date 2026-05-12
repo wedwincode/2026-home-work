@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// codacy-ignore-start: class is intentionally disabled for parameterized tests
+@SuppressWarnings("PMD.TestClassWithoutTestCases")
 @Disabled
 @ParameterizedClass
 @ArgumentsSource(AuditServiceFactoryArgumentsProvider.class)
