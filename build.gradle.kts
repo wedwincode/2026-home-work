@@ -43,6 +43,7 @@ dependencies {
     implementation("io.projectreactor:reactor-core:3.8.5")
 
     implementation("org.apache.kafka:kafka-clients:4.2.0")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.3")
 
     testImplementation(platform("org.junit:junit-bom:6.0.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
