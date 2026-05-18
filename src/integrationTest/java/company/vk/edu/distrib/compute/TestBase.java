@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Contains utility methods for unit tests.
@@ -21,18 +22,17 @@ abstract class TestBase {
 
     public static final Duration TIMEOUT = Duration.ofSeconds(5);
 
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger(20000);
+    private static final int PORT_LIMIT = 50000;
+
     static int randomPort() {
-        final var port = ThreadLocalRandom.current().nextInt(10000, 60000);
-        for (int j = 0; j < 5; j++) {
-            for (int i = 0; i < 100_000; i++) {
-                if (isTcpPortAvailable(port)) {
-                    return port;
-                }
+        for (int i = 0; i < 10000; i++) {
+            int port = NEXT_PORT.getAndIncrement();
+            if (port > PORT_LIMIT) {
+                NEXT_PORT.compareAndSet(port + 1, 20000);
             }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new IllegalStateException("Interrupted while looking for available port");
+            if (isTcpPortAvailable(port)) {
+                return port;
             }
         }
         throw new IllegalStateException("Can't find available port");
