@@ -13,7 +13,7 @@ public class AuditEventSerializer implements Serializer<AuditEvent> {
     public byte[] serialize(String topic, AuditEvent data) {
         try {
             if (data == null) {
-                return null;
+                return new byte[]{};
             }
 
             return objectMapper.writeValueAsBytes(data);

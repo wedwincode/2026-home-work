@@ -2,6 +2,7 @@ package company.vk.edu.distrib.compute.wedwincode.kafka;
 
 import company.vk.edu.distrib.compute.AuditService;
 import company.vk.edu.distrib.compute.AuditServiceFactory;
+import company.vk.edu.distrib.compute.wedwincode.exceptions.AuditException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,7 +24,7 @@ public class EdwinAuditServiceFactory extends AuditServiceFactory {
             Path path = tempDir.resolve("audit.log");
             return new AuditStorage(path);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new AuditException("audit storage error", e);
         }
     }
 }
